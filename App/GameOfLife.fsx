@@ -9,11 +9,12 @@ let Config = {|
     SecondsPerUpdate = System.TimeSpan.FromSeconds(0.1)
 |}
 
-type State = {
+type State' = {
     Field : bool[,]
-    Pcg : Pcg.Pcg
     NextMove : System.TimeSpan
 }
+
+type State = Pcg.PcgV<State'>
 
 type Event =
     | Restart
@@ -45,7 +46,9 @@ let step (field : bool[,]) =
             count = 3
     )
 
-let makeField (pcg) =
+let makeField =
+    Pcg.pcgM {
+    let! pcg = Pcg.PcgM.getPcg
     let mutable pcg = pcg
     let field =
         Array2D.init Config.FieldSizeX Config.FieldSizeY (fun _ _ ->
@@ -54,33 +57,45 @@ let makeField (pcg) =
             value = 0
         )
         |> step
-
-    (pcg, field)
-
-let makeInitial (seed) =
-    let (pcg, field) = Pcg.make seed |> makeField
-    {
-        Field = field
-        Pcg = pcg
-        NextMove = Config.SecondsPerUpdate
+    do! Pcg.PcgM.setPcg pcg
+    return field
     }
 
+let makeInitial =
+    Pcg.PcgV.make (fun () -> Pcg.pcgM {
+        let! field = makeField
+        return {
+                Field = field
+                NextMove = Config.SecondsPerUpdate
+            }
+    })
+
 let Update (state:State) (time:System.TimeSpan) (event) =
+    state
+    |> Pcg.PcgV.apply (fun state ->
+    Pcg.pcgM {
     match event with
     | Restart ->
-        let (pcg, field) = makeField state.Pcg
-        {state with
-            Field = field
-            Pcg = pcg
-        }
+        let! field = makeField
+        return
+            {state with
+                Field = field
+            }
+
     | Tick ->
-        if time < state.NextMove then state else
-        {state with
-            NextMove = state.NextMove + Config.SecondsPerUpdate
-            Field = step state.Field
-        }
+        if time < state.NextMove then
+            return state
+        else
+            return
+                {state with
+                    NextMove = state.NextMove + Config.SecondsPerUpdate
+                    Field = step state.Field
+                }
+    })
 
 let Draw (state:State) = Scene.graph {
+    let state = state.Value
+
     for x = 0 to Config.FieldSizeX - 1 do
         for y = 0 to Config.FieldSizeY - 1 do
             if state.Field[x, y] then

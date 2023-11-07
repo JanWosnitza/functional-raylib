@@ -9,12 +9,13 @@ type Mode =
     | Snake of (System.TimeSpan * Snake.State)
     | GameOfLife of (System.TimeSpan * GameOfLife.State)
 
-type State = {
-    Pcg : Pcg.Pcg
+type State' = {
     MenuState : Menu.State
     Mode : Mode
     Ticks : int
 }
+
+type State = Pcg.PcgV<State'>
 
 type Event =
     | MenuEvent of Menu.Event
@@ -40,18 +41,24 @@ let InputBindings = [
         |> Input.map GameOfLifeEvent
 ]
 
-let makeInitial (seed:uint64) = {
-    Pcg = Pcg.make seed
-    MenuState = Menu.makeInitial ()
-    Mode = Menu
-    Ticks = 0
-}
+let makeInitial =
+    Pcg.PcgV.make (fun () -> Pcg.pcgM {
+        return {
+                MenuState = Menu.makeInitial ()
+                Mode = Menu
+                Ticks = 0
+            }
+    })
 
 let Update (appState:State) (time:System.TimeSpan) (appEvent:Event) =
+    appState |> Pcg.PcgV.apply (fun appState ->
+    Pcg.pcgM {
+
     if appEvent = Cancel then
         match appState.Mode with
-        | Menu -> (appState, [Quit])
-        | _ -> ({appState with Mode = Menu}, [])
+        | Menu -> return (appState, [Quit])
+        | _ ->
+            return ({appState with Mode = Menu}, [])
     else
         match appState.Mode with
         | Menu ->
@@ -63,34 +70,32 @@ let Update (appState:State) (time:System.TimeSpan) (appEvent:Event) =
                         {appState with
                             MenuState = menuState
                         }
-                    (appState, [])
+                    return (appState, [])
 
                 | Menu.StartSnake ->
-                    let (pcg, value) = Pcg.raw appState.Pcg
+                    let! value = Pcg.PcgM.raw
                     let snake = Snake.makeInitialState (uint64 value)
                     let appState =
                         {appState with
-                            Pcg = pcg
                             Mode = Snake (time, snake)
                             Ticks = 0
                         }
-                    (appState, [])
+                    return (appState, [])
 
                 | Menu.StartGameOfLife ->
-                    let (pcg, value) = Pcg.raw appState.Pcg
+                    let! value = Pcg.PcgM.raw
                     let gol = GameOfLife.makeInitial (uint64 value)
                     let appState =
                         {appState with
-                            Pcg = pcg
                             Mode = GameOfLife (time, gol)
                             Ticks = 0
                         }
-                    (appState, [])
+                    return (appState, [])
 
                 | Menu.Quit ->
-                    (appState, [Quit])
+                    return (appState, [Quit])
             
-            | _ -> (appState, [])
+            | _ -> return (appState, [])
 
         | Snake snake ->
             let SnakeUpdate (startTime, snake) (event) =
@@ -105,6 +110,7 @@ let Update (appState:State) (time:System.TimeSpan) (appEvent:Event) =
 
                 let commands =
                     commands
+                    
                     |> List.map (function
                         | Snake.PlaySound path -> PlaySound path
                     )
@@ -115,14 +121,14 @@ let Update (appState:State) (time:System.TimeSpan) (appEvent:Event) =
             | SnakeEvent event ->
                 let (mode, commands) = SnakeUpdate snake event
                 let appState = {appState with Mode = mode}
-                (appState, commands)
+                return (appState, commands)
 
             | Tick ->
                 let (mode, commands) = SnakeUpdate snake Snake.Tick
                 let appState = {appState with Mode = mode}
-                (appState, commands)
+                return (appState, commands)
             
-            | _ -> (appState, [])
+            | _ -> return (appState, [])
 
         | GameOfLife (startTime, gol) ->
             match appEvent with
@@ -131,18 +137,22 @@ let Update (appState:State) (time:System.TimeSpan) (appEvent:Event) =
                     {appState with
                         Mode = GameOfLife (startTime, GameOfLife.Update gol (time - startTime) event)
                     }
-                (appState, [])
+                return (appState, [])
 
             | (Tick) ->
                 let appState =
                     {appState with
                         Mode = GameOfLife (startTime, GameOfLife.Update gol (time - startTime) GameOfLife.Tick)
                     }
-                (appState, [])
+                return (appState, [])
 
-            | _ -> (appState, [])
+            | _ -> return (appState, [])
+    })
+    |> Pcg.PcgV.split id
 
 let Draw (state:State) = Scene.graph {
+    let state = state.Value
+
     match state.Mode with
     | Mode.Menu ->
         yield! Menu.Draw state.MenuState

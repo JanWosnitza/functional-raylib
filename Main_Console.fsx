@@ -156,7 +156,7 @@ while not Quit do
                 }
 
                 yield! App.Draw State
-                if State.Mode = App.Mode.Menu then
+                if State.Value.Mode = App.Mode.Menu then
                     yield Scene.Text {
                         Position = (1, 12)
                         Size = 1
