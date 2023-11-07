@@ -31,10 +31,10 @@ type Command =
     | PlaySound of string
 
 let InputBindings = [
-    Input.down Input.UpKey (Look Up)
-    Input.down Input.DownKey (Look Down)
-    Input.down Input.LeftKey (Look Left)
-    Input.down Input.RightKey (Look Right)
+    Input.down Input.Action.Up (Look Up)
+    Input.down Input.Action.Down (Look Down)
+    Input.down Input.Action.Left (Look Left)
+    Input.down Input.Action.Right (Look Right)
 ]
 
 let getFoodPosition (forbiddenPositions:list<int * int>) (pcg) : Pcg.Pcg * (int * int) =

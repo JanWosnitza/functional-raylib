@@ -3,17 +3,18 @@ type Condition =
     | Down
     | Pressed
 
-type Key =
-    | UpKey
-    | DownKey
-    | LeftKey
-    | RightKey
-    | SelectKey
-    | CancelKey
+[<RequireQualifiedAccess>]
+type Action =
+    | Up
+    | Down
+    | Left
+    | Right
+    | Select
+    | Cancel
 
-let down (key:Key) (event) = (Down, key, event)
-let pressed (key:Key) (event) = (Pressed, key, event)
+let down (key:Action) (event) = (Down, key, event)
+let pressed (key:Action) (event) = (Pressed, key, event)
 
-let map (mapper) (bindings:list<Condition * Key * 'a>) =
+let map (mapper) (bindings:list<Condition * Action * 'a>) =
     bindings
     |> List.map (fun (condition, key, x) -> (condition, key, mapper x))

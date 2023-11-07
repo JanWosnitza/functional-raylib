@@ -20,7 +20,7 @@ type Event =
     | Tick
 
 let InputBindings = [
-    Input.pressed Input.SelectKey Restart
+    Input.pressed Input.Action.Select Restart
 ]
 
 let neighbors = [
@@ -68,7 +68,6 @@ let makeInitial (seed) =
 let Update (state:State) (time:System.TimeSpan) (event) =
     match event with
     | Restart ->
-        printfn "restart"
         let (pcg, field) = makeField state.Pcg
         {state with
             Field = field

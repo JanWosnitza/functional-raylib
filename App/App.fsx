@@ -28,7 +28,7 @@ type Command =
     | Quit
 
 let InputBindings = [
-    yield Input.pressed Input.CancelKey Cancel
+    yield Input.pressed Input.Action.Cancel Cancel
 
     yield! Menu.InputBindings
         |> Input.map MenuEvent

@@ -1,19 +1,22 @@
 
-type Color = float * float * float
-
-let color r g b : Color =
-    (r, g, b)
-
-module Color =
-    let Black = color 0 0 0
-    let White = color 0.9 0.9 0.9
-    let Gray = color 0.6 0.6 0.6
-    let Red = color 0.9 0 0
-    let DarkRed = color 0.6 0 0
-    let Green = color 0 0.9 0
-    let DarkGreen = color 0 0.6 0
-    let Blue = color 0 0 0.9
-    let DarkBlue = color 0 0 0.6
+[<RequireQualifiedAccess>]
+type Color =
+    | Black
+    | DarkBlue
+    | DarkGreen
+    | DarkCyan
+    | DarkRed
+    | DarkMagenta
+    | DarkYellow
+    | Gray
+    | DarkGray
+    | Blue
+    | Green
+    | Cyan
+    | Red
+    | Magenta
+    | Yellow
+    | White
 
 type Rectangle = {
     Position : int * int
@@ -22,14 +25,14 @@ type Rectangle = {
 }
 
 module Rectangle =
-    let scale (factor:int) (data:Rectangle) =
+    let scale (scaleX, scaleY) (data:Rectangle) =
         {data with
             Position =
                 let (x, y) = data.Position
-                (x * factor, y * factor)
+                (x * scaleX, y * scaleY)
             Size =
                 let (w, h) = data.Size
-                (w * factor, h * factor)
+                (w * scaleX, h * scaleY)
         }
 
 type Ellipse = {
@@ -39,30 +42,30 @@ type Ellipse = {
 }
 
 module Ellipse =
-    let scale (factor:int) (data:Ellipse) =
+    let scale (scaleX, scaleY) (data:Ellipse) =
         {data with
             Position =
                 let (x, y) = data.Position
-                (x * factor, y * factor)
+                (x * scaleX, y * scaleY)
             Size =
                 let (w, h) = data.Size
-                (w * factor, h * factor)
+                (w * scaleX, h * scaleY)
         }
 
 type Text = {
     Position : int * int
-    Size : float
+    Size : int
     Color : Color
     Text : string
 }
 
 module Text =
-    let scale (factor:int) (data:Text) =
+    let scale (scaleX, scaleY) (data:Text) =
         {data with
             Position =
                 let (x, y) = data.Position
-                (x * factor, y * factor)
-            Size = data.Size * float factor
+                (x * scaleX, y * scaleY)
+            Size = data.Size * min scaleX scaleY
         }
 
 type Node =
@@ -71,11 +74,11 @@ type Node =
     | Text of Text
 
 module Node =
-    let scale (factor) =
+    let scale (scale) =
         function
-        | Rectangle data -> Rectangle (Rectangle.scale factor data)
-        | Ellipse data -> Ellipse (Ellipse.scale factor data)
-        | Text data -> Text (Text.scale factor data)
+        | Rectangle data -> Rectangle (Rectangle.scale scale data)
+        | Ellipse data -> Ellipse (Ellipse.scale scale data)
+        | Text data -> Text (Text.scale scale data)
 
 [<Struct>]
 type Graph = Graph of seq<Node>

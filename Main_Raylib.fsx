@@ -14,14 +14,33 @@ let FramesPerSecond = 60
 
 let InputBindings =
     [
-        Input.UpKey, [|KeyboardKey.KEY_W; KeyboardKey.KEY_UP|]
-        Input.DownKey, [|KeyboardKey.KEY_S; KeyboardKey.KEY_DOWN|]
-        Input.LeftKey, [|KeyboardKey.KEY_A; KeyboardKey.KEY_LEFT|]
-        Input.RightKey, [|KeyboardKey.KEY_D; KeyboardKey.KEY_RIGHT|]
-        Input.SelectKey, [|KeyboardKey.KEY_SPACE; KeyboardKey.KEY_ENTER|]
-        Input.CancelKey, [|KeyboardKey.KEY_ESCAPE|]
+        Input.Action.Up, [|KeyboardKey.KEY_W; KeyboardKey.KEY_UP|]
+        Input.Action.Down, [|KeyboardKey.KEY_S; KeyboardKey.KEY_DOWN|]
+        Input.Action.Left, [|KeyboardKey.KEY_A; KeyboardKey.KEY_LEFT|]
+        Input.Action.Right, [|KeyboardKey.KEY_D; KeyboardKey.KEY_RIGHT|]
+        Input.Action.Select, [|KeyboardKey.KEY_SPACE; KeyboardKey.KEY_ENTER|]
+        Input.Action.Cancel, [|KeyboardKey.KEY_ESCAPE|]
     ]
     |> Map.ofList
+
+let ColorMapping =
+    let color r g b =
+        let toByte (v:float) = v * 255.0 |> int |> min 255 |> max 0 |> byte
+        Color(toByte r, toByte g, toByte b, 255uy)
+    [
+        Scene.Color.Black, color 0.0 0.0 0.0
+        Scene.Color.White, color 0.9 0.9 0.9
+        Scene.Color.Gray, color 0.6 0.6 0.6
+        Scene.Color.Red, color 0.9 0 0
+        Scene.Color.DarkRed, color 0.6 0 0
+        Scene.Color.Green, color 0 0.9 0
+        Scene.Color.DarkGreen, color 0 0.6 0
+        Scene.Color.Blue, color 0 0 0.9
+        Scene.Color.DarkBlue, color 0 0 0.6
+        Scene.Color.DarkGray, color 0.3 0.3 0.3
+        // TODO add missing colors
+    ]
+    |> Map.ofSeq
 
 let ReadInput =
     let baked =
@@ -46,9 +65,10 @@ let ReadInput =
     |> Seq.choose (fun f -> f ())
 
 let Draw (scene) =
-    let convertColor ((r, g, b):Scene.Color) =
-        let toByte (v:float) = v * 255.0 |> int |> min 255 |> max 0 |> byte
-        Color(toByte r, toByte g, toByte b, 255uy)
+    let convertColor (color) =
+        ColorMapping
+        |> Map.tryFind color
+        |> Option.defaultValue (Color(255uy, 0uy, 255uy, 255uy))
 
     scene
     |> Seq.iter (function
@@ -127,8 +147,17 @@ while not (WindowShouldClose().AsBool || Quit) do
         LastDrawnState <- Some State
 
         let sceneGraph =
-            App.Draw State
-            |> Scene.scale Scale
+            Scene.graph {
+                yield! App.Draw State
+                if State.Mode = App.Mode.Menu then
+                    yield Scene.Text {
+                        Position = (1, 12)
+                        Size = 1
+                        Color = Scene.Color.DarkGray
+                        Text = "[Space] Select\n[W] Up\n[S] Down\n[A] Left\n[D] Right"
+                    }
+            }
+            |> Scene.scale (Scale, Scale)
 
         BeginDrawing()
         ClearBackground(Color.RAYWHITE)

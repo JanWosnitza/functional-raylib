@@ -15,9 +15,9 @@ type Result =
     | Quit
 
 let InputBindings = [
-    Input.pressed Input.UpKey Previous
-    Input.pressed Input.DownKey Next
-    Input.pressed Input.SelectKey Select
+    Input.pressed Input.Action.Up Previous
+    Input.pressed Input.Action.Down Next
+    Input.pressed Input.Action.Select Select
 ]
 
 let makeInitial () = ItemStartSnake
@@ -55,15 +55,8 @@ let Update (state:State) (event) : Result =
 
 let Draw (state:State) = Scene.graph {
     yield Scene.Text {
-        Position = (1, 13)
-        Size = 0.8
-        Color = Scene.Color.Gray
-        Text = "[Space] Select\n[W] Up\n[S] Down\n[A] Left\n[D] Right"
-    }
-
-    yield Scene.Text {
         Position = (5, 5)
-        Size = 1.5
+        Size = 1
         Color = Scene.Color.Black
         Text = System.String.Join(
             '\n',
