@@ -5,7 +5,7 @@
 open App
 open System
 
-let Scale = (6, 3)
+let Scale = (4, 2)
 
 let ColorMappings =
     [
@@ -98,7 +98,7 @@ let mutable State = App.makeInitial
 
 let mutable ActiveCommands = []
 
-let mutable Pcg = Pcg.make (uint64 System.Environment.TickCount64)
+let mutable Pcg = Pcg.make (uint64 Environment.TickCount64)
 
 let AppUpdate (appState:App.State) (time) (event) =
     let (pcg, (appState, commands)) = App.Update appState time event Pcg
@@ -106,8 +106,9 @@ let AppUpdate (appState:App.State) (time) (event) =
     ActiveCommands <- commands @ ActiveCommands
     appState
 
-let SizeX = Snake.Config.FieldSizeX
-let SizeY = Snake.Config.FieldSizeY
+let SizeX = Snake.Config.FieldSizeX * fst Scale
+let SizeY = Snake.Config.FieldSizeY * snd Scale
+
 let ClearText =
     String.Join('\n',
         String(' ', SizeX)
@@ -151,12 +152,6 @@ while not Quit do
 
         let sceneGraph =
             Scene.graph {
-                yield Scene.Rectangle {
-                    Position = (0, 0)
-                    Size = (SizeX, SizeY)
-                    Color = Scene.Color.White
-                }
-
                 yield! App.Draw State
                 if State.Mode = App.Mode.Menu then
                     yield Scene.Text {
