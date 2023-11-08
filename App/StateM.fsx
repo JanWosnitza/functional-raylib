@@ -11,6 +11,8 @@ let map (mapper) (m:M<'State, _>) (state) =
     let (state, x) = m state
     (state, mapper x)
 
+let apply (binder:'a -> M<'State, 'b>) (state, x) = binder x state
+
 let getState state = (state, state)
 
 let setState (state:'State) (_:'State) = (state, ())

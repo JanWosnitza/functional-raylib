@@ -94,17 +94,17 @@ let Draw (scene) =
                 Console.Write(line)
     )
 
-let mutable State = App.makeInitial
+let mutable State = (Pcg.make (uint64 System.Environment.TickCount64), App.makeInitial)
 
 let mutable ActiveCommands = []
 
-let mutable Pcg = Pcg.make (uint64 Environment.TickCount64)
+let AppUpdate (time) (event) =
+    let (pcg, (appState, commands)) =
+        State
+        |> StateM.apply (fun appState -> App.Update appState time event)
 
-let AppUpdate (appState:App.State) (time) (event) =
-    let (pcg, (appState, commands)) = App.Update appState time event Pcg
-    Pcg <- pcg
+    State <- (pcg, appState)
     ActiveCommands <- commands @ ActiveCommands
-    appState
 
 let SizeX = Snake.Config.FieldSizeX * fst Scale
 let SizeY = Snake.Config.FieldSizeY * snd Scale
@@ -137,7 +137,7 @@ while not Quit do
     let time = watch.Elapsed
 
     for event in ReadInput do
-        State <- AppUpdate State time event
+        AppUpdate time event
 
     for command in activeCommands do
         match command with
@@ -145,15 +145,16 @@ while not Quit do
 
         | App.Quit -> Quit <- true
 
-    State <- AppUpdate State time App.Tick
+    AppUpdate time App.Tick
 
+    let (_, appState) = State
     if LastDrawnState <> Some State then
         LastDrawnState <- Some State
 
         let sceneGraph =
             Scene.graph {
-                yield! App.Draw State
-                if State.Mode = App.Mode.Menu then
+                yield! App.Draw appState
+                if appState.Mode = App.Mode.Menu then
                     yield Scene.Text {
                         Position = (1, 12)
                         Size = 1

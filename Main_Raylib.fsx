@@ -87,17 +87,17 @@ let Draw (scene) =
             DrawEllipse(x + w / 2, y + h / 2, float32 w / 2.0f, float32 h / 2.0f, convertColor data.Color)
     )
 
-let mutable State = App.makeInitial
+let mutable State = (Pcg.make (uint64 System.Environment.TickCount64), App.makeInitial)
 
 let mutable ActiveCommands = []
 
-let mutable Pcg = Pcg.make (uint64 System.Environment.TickCount64)
+let AppUpdate (time) (event) =
+    let (pcg, (appState, commands)) =
+        State
+        |> StateM.apply (fun appState -> App.Update appState time event)
 
-let AppUpdate (appState:App.State) (time) (event) =
-    let (pcg, (appState, commands)) = App.Update appState time event Pcg
-    Pcg <- pcg
+    State <- (pcg, appState)
     ActiveCommands <- commands @ ActiveCommands
-    appState
 
 InitAudioDevice()
 
@@ -127,7 +127,7 @@ while not (WindowShouldClose().AsBool || Quit) do
     let time = watch.Elapsed
 
     for event in ReadInput do
-        State <- AppUpdate State time event
+        AppUpdate time event
 
     for command in activeCommands do
         match command with
@@ -144,15 +144,16 @@ while not (WindowShouldClose().AsBool || Quit) do
 
         | App.Quit -> Quit <- true
 
-    State <- AppUpdate State time App.Tick
+    AppUpdate time App.Tick
 
-    if LastDrawnState <> Some State then
-        LastDrawnState <- Some State
+    let (_, appState) = State
+    if LastDrawnState <> Some appState then
+        LastDrawnState <- Some appState
 
         let sceneGraph =
             Scene.graph {
-                yield! App.Draw State
-                if State.Mode = App.Mode.Menu then
+                yield! App.Draw appState
+                if appState.Mode = App.Mode.Menu then
                     yield Scene.Text {
                         Position = (1, 12)
                         Size = 1

@@ -130,8 +130,6 @@ let Update (state:State) (time:System.TimeSpan) (event) = StateM.m<Pcg.Pcg32> {
 }
 
 let Draw (state:State) = Scene.graph {
-    let state = state
-
     yield Scene.Ellipse {
         Position = state.FoodPosition
         Size = (1, 1)
