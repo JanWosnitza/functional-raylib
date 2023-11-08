@@ -11,6 +11,8 @@ type Action =
     | Right
     | Select
     | Cancel
+    | StoreSnapshot
+    | RestoreSnapshot
 
 let down (key:Action) (event) = (Down, key, event)
 let pressed (key:Action) (event) = (Pressed, key, event)

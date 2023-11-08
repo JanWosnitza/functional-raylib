@@ -1,9 +1,12 @@
 #load "App/Input.fsx"
 #load "App/Scene.fsx"
 #load "App/App.fsx"
+#load "App/Snapshot.fsx"
 
 open App
 open System
+
+module Root = Snapshot
 
 let Scale = (4, 2)
 
@@ -36,6 +39,8 @@ let InputBindings =
         Input.Action.Right, [|ConsoleKey.D|]
         Input.Action.Select, [|ConsoleKey.Spacebar; ConsoleKey.Enter|]
         Input.Action.Cancel, [|ConsoleKey.Escape|]
+        Input.Action.StoreSnapshot, [|ConsoleKey.F5|]
+        Input.Action.RestoreSnapshot, [|ConsoleKey.F8|]
     ]
 
 let ReadInput =
@@ -48,7 +53,7 @@ let ReadInput =
         |> Map.ofSeq
 
     let actionBindings =
-        App.InputBindings
+        Root.InputBindings
         |> Seq.map (fun (_, action, event) -> (action, event))
         |> Seq.groupBy fst
         |> Seq.map (fun (action, events) -> (action, events |> Seq.map snd |> Array.ofSeq))
@@ -94,16 +99,18 @@ let Draw (scene) =
                 Console.Write(line)
     )
 
-let mutable State = (Pcg.make (uint64 System.Environment.TickCount64), App.makeInitial)
+let mutable State =
+    Pcg.make (uint64 System.Environment.TickCount64)
+    |> Root.makeInitial
 
 let mutable ActiveCommands = []
 
-let AppUpdate (time) (event) =
-    let (pcg, (appState, commands)) =
+let StateUpdate (time) (event) =
+    let (pcg, (root, commands)) =
         State
-        |> StateM.apply (fun appState -> App.Update appState time event)
+        |> StateM.apply (fun root -> Root.Update root time event)
 
-    State <- (pcg, appState)
+    State <- (pcg, root)
     ActiveCommands <- commands @ ActiveCommands
 
 let SizeX = Snake.Config.FieldSizeX * fst Scale
@@ -137,7 +144,7 @@ while not Quit do
     let time = watch.Elapsed
 
     for event in ReadInput do
-        AppUpdate time event
+        StateUpdate time event
 
     for command in activeCommands do
         match command with
@@ -145,7 +152,7 @@ while not Quit do
 
         | App.Quit -> Quit <- true
 
-    AppUpdate time App.Tick
+    StateUpdate time Root.Tick
 
     let (_, appState) = State
     if LastDrawnState <> Some State then
@@ -153,8 +160,8 @@ while not Quit do
 
         let sceneGraph =
             Scene.graph {
-                yield! App.Draw appState
-                if appState.Mode = App.Mode.Menu then
+                yield! Root.Draw appState
+                if appState.App.Mode = App.Mode.Menu then
                     yield Scene.Text {
                         Position = (1, 12)
                         Size = 1

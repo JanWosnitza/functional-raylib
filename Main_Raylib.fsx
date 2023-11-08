@@ -2,6 +2,7 @@
 #load "App/Input.fsx"
 #load "App/Scene.fsx"
 #load "App/App.fsx"
+#load "App/Snapshot.fsx"
 
 open Raylib_cs
 open type Raylib
@@ -12,6 +13,8 @@ type CBool with member this.AsBool = this = CBool(true)
 let Scale = 30
 let FramesPerSecond = 60
 
+module Root = Snapshot
+
 let InputBindings =
     [
         Input.Action.Up, [|KeyboardKey.KEY_W; KeyboardKey.KEY_UP|]
@@ -20,6 +23,8 @@ let InputBindings =
         Input.Action.Right, [|KeyboardKey.KEY_D; KeyboardKey.KEY_RIGHT|]
         Input.Action.Select, [|KeyboardKey.KEY_SPACE; KeyboardKey.KEY_ENTER|]
         Input.Action.Cancel, [|KeyboardKey.KEY_ESCAPE|]
+        Input.Action.StoreSnapshot, [|KeyboardKey.KEY_F5|]
+        Input.Action.RestoreSnapshot, [|KeyboardKey.KEY_F8|]
     ]
     |> Map.ofList
 
@@ -44,7 +49,7 @@ let ColorMapping =
 
 let ReadInput =
     let baked =
-        App.InputBindings
+        Root.InputBindings
         |> Seq.choose (fun (condition, action, event) ->
             InputBindings
             |> Map.tryFind action
@@ -87,16 +92,18 @@ let Draw (scene) =
             DrawEllipse(x + w / 2, y + h / 2, float32 w / 2.0f, float32 h / 2.0f, convertColor data.Color)
     )
 
-let mutable State = (Pcg.make (uint64 System.Environment.TickCount64), App.makeInitial)
+let mutable State =
+    Pcg.make (uint64 System.Environment.TickCount64)
+    |> Root.makeInitial
 
 let mutable ActiveCommands = []
 
-let AppUpdate (time) (event) =
-    let (pcg, (appState, commands)) =
+let StateUpdate (time) (event) =
+    let (pcg, (root, commands)) =
         State
-        |> StateM.apply (fun appState -> App.Update appState time event)
+        |> StateM.apply (fun root -> Root.Update root time event)
 
-    State <- (pcg, appState)
+    State <- (pcg, root)
     ActiveCommands <- commands @ ActiveCommands
 
 InitAudioDevice()
@@ -127,7 +134,7 @@ while not (WindowShouldClose().AsBool || Quit) do
     let time = watch.Elapsed
 
     for event in ReadInput do
-        AppUpdate time event
+        StateUpdate time event
 
     for command in activeCommands do
         match command with
@@ -144,16 +151,16 @@ while not (WindowShouldClose().AsBool || Quit) do
 
         | App.Quit -> Quit <- true
 
-    AppUpdate time App.Tick
+    StateUpdate time Root.Tick
 
-    let (_, appState) = State
-    if LastDrawnState <> Some appState then
-        LastDrawnState <- Some appState
+    let (_, root) = State
+    if LastDrawnState <> Some root then
+        LastDrawnState <- Some root
 
         let sceneGraph =
             Scene.graph {
-                yield! App.Draw appState
-                if appState.Mode = App.Mode.Menu then
+                yield! Root.Draw root
+                if root.App.Mode = App.Mode.Menu then
                     yield Scene.Text {
                         Position = (1, 12)
                         Size = 1
@@ -165,7 +172,7 @@ while not (WindowShouldClose().AsBool || Quit) do
 
         BeginDrawing()
         ClearBackground(Color.RAYWHITE)
-        
+
         sceneGraph
         |> Scene.bake
         |> Draw

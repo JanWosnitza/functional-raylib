@@ -13,9 +13,9 @@ let map (mapper) (m:M<'State, _>) (state) =
 
 let apply (binder:'a -> M<'State, 'b>) (state, x) = binder x state
 
-let getState state = (state, state)
+let read state = (state, state)
 
-let setState (state:'State) (_:'State) = (state, ())
+let write (state:'State) (_:'State) = (state, ())
 
 let left (left:M<'State, _>) (right:M<'State, _>) (state) =
     let (state, x) = left state
