@@ -87,12 +87,15 @@ let Draw (scene) =
             DrawEllipse(x + w / 2, y + h / 2, float32 w / 2.0f, float32 h / 2.0f, convertColor data.Color)
     )
 
-let mutable State = App.makeInitial (uint64 System.Environment.TickCount64)
+let mutable State = App.makeInitial
 
 let mutable ActiveCommands = []
 
+let mutable Pcg = Pcg.make (uint64 System.Environment.TickCount64)
+
 let AppUpdate (appState:App.State) (time) (event) =
-    let (appState, commands) = App.Update appState time event
+    let (pcg, (appState, commands)) = App.Update appState time event Pcg
+    Pcg <- pcg
     ActiveCommands <- commands @ ActiveCommands
     appState
 
@@ -149,7 +152,7 @@ while not (WindowShouldClose().AsBool || Quit) do
         let sceneGraph =
             Scene.graph {
                 yield! App.Draw State
-                if State.Value.Mode = App.Mode.Menu then
+                if State.Mode = App.Mode.Menu then
                     yield Scene.Text {
                         Position = (1, 12)
                         Size = 1

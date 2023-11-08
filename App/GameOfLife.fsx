@@ -1,7 +1,7 @@
-#load "Scene.fsx"
 #load "Input.fsx"
 #load "Scene.fsx"
 #load "Pcg.fsx"
+#load "StateM.fsx"
 
 let Config = {|
     FieldSizeX = 20
@@ -9,12 +9,10 @@ let Config = {|
     SecondsPerUpdate = System.TimeSpan.FromSeconds(0.1)
 |}
 
-type State' = {
+type State = {
     Field : bool[,]
     NextMove : System.TimeSpan
 }
-
-type State = Pcg.PcgV<State'>
 
 type Event =
     | Restart
@@ -46,34 +44,26 @@ let step (field : bool[,]) =
             count = 3
     )
 
-let makeField =
-    Pcg.pcgM {
-    let! pcg = Pcg.PcgM.getPcg
-    let mutable pcg = pcg
-    let field =
-        Array2D.init Config.FieldSizeX Config.FieldSizeY (fun _ _ ->
-            let (pcg', value) = Pcg.range (0, 4) pcg
-            pcg <- pcg'
-            value = 0
-        )
-        |> step
-    do! Pcg.PcgM.setPcg pcg
+let makeField = StateM.m<Pcg.Pcg32> {
+    let field = Array2D.zeroCreate Config.FieldSizeX Config.FieldSizeY
+
+    for x = 0 to Config.FieldSizeX - 1 do
+        for y = 0 to Config.FieldSizeY - 1 do
+            let! value = Pcg.range (0, 4)
+            field[x, y] <- value = 0
+
     return field
-    }
+}
 
-let makeInitial =
-    Pcg.PcgV.make (fun () -> Pcg.pcgM {
-        let! field = makeField
-        return {
-                Field = field
-                NextMove = Config.SecondsPerUpdate
-            }
-    })
+let makeInitial = StateM.m<Pcg.Pcg32> {
+    let! field = makeField
+    return {
+            Field = field
+            NextMove = Config.SecondsPerUpdate
+        }
+}
 
-let Update (state:State) (time:System.TimeSpan) (event) =
-    state
-    |> Pcg.PcgV.apply (fun state ->
-    Pcg.pcgM {
+let Update (state:State) (time:System.TimeSpan) (event) = StateM.m<Pcg.Pcg32> {
     match event with
     | Restart ->
         let! field = makeField
@@ -91,11 +81,9 @@ let Update (state:State) (time:System.TimeSpan) (event) =
                     NextMove = state.NextMove + Config.SecondsPerUpdate
                     Field = step state.Field
                 }
-    })
+}
 
 let Draw (state:State) = Scene.graph {
-    let state = state.Value
-
     for x = 0 to Config.FieldSizeX - 1 do
         for y = 0 to Config.FieldSizeY - 1 do
             if state.Field[x, y] then

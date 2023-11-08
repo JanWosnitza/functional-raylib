@@ -94,12 +94,15 @@ let Draw (scene) =
                 Console.Write(line)
     )
 
-let mutable State = App.makeInitial (uint64 System.Environment.TickCount64)
+let mutable State = App.makeInitial
 
 let mutable ActiveCommands = []
 
+let mutable Pcg = Pcg.make (uint64 System.Environment.TickCount64)
+
 let AppUpdate (appState:App.State) (time) (event) =
-    let (appState, commands) = App.Update appState time event
+    let (pcg, (appState, commands)) = App.Update appState time event Pcg
+    Pcg <- pcg
     ActiveCommands <- commands @ ActiveCommands
     appState
 
@@ -122,7 +125,6 @@ Console.CursorVisible <- false
 
 let watch = System.Diagnostics.Stopwatch.StartNew()
 let mutable LastDrawnState = None
-
 let mutable Quit = false
 
 while not Quit do
@@ -156,7 +158,7 @@ while not Quit do
                 }
 
                 yield! App.Draw State
-                if State.Value.Mode = App.Mode.Menu then
+                if State.Mode = App.Mode.Menu then
                     yield Scene.Text {
                         Position = (1, 12)
                         Size = 1

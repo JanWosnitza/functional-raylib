@@ -1,6 +1,7 @@
 #load "Input.fsx"
 #load "Scene.fsx"
 #load "Pcg.fsx"
+#load "StateM.fsx"
 
 let Config = {|
     FieldSizeX = 20
@@ -13,7 +14,7 @@ let Config = {|
 
 type Direction = | Up | Down | Left | Right
 
-type State' = {
+type State = {
     LastLookDirection : Direction
     LookDirection : Direction
     HeadPosition : int * int
@@ -21,8 +22,6 @@ type State' = {
     FoodPosition : int * int
     NextMove : System.TimeSpan
 }
-
-type State = Pcg.PcgV<State'>
 
 type Event =
     | Look of Direction
@@ -38,29 +37,28 @@ let InputBindings = [
     Input.down Input.Action.Right (Look Right)
 ]
 
-let rec getFoodPosition (forbiddenPositions:list<int * int>) : Pcg.PcgM<int * int> =
-    Pcg.pcgM {
-    let! x = Pcg.PcgM.range (0, Config.FieldSizeX - 1)
-    let! y = Pcg.PcgM.range (0, Config.FieldSizeY - 1)
+let rec getFoodPosition (forbiddenPositions:list<int * int>) =
+    StateM.m<Pcg.Pcg32> {
+    let! x = Pcg.range (0, Config.FieldSizeX - 1)
+    let! y = Pcg.range (0, Config.FieldSizeY - 1)
     if forbiddenPositions |> List.contains (x, y) |> not then
         return (x, y)
     else
         return! getFoodPosition forbiddenPositions
     }
 
-let makeInitialState =
-    Pcg.PcgV.make (fun () -> Pcg.pcgM {
-        let startPosition = (10, 10)
-        let! foodPosition = getFoodPosition [startPosition]
-        return {
-                HeadPosition = startPosition
-                LookDirection = Right
-                LastLookDirection = Right
-                TailPositions = []
-                FoodPosition = foodPosition
-                NextMove = Config.SecondsPerMove
-            }
-    })
+let makeInitialState = StateM.m<Pcg.Pcg32> {
+    let startPosition = (10, 10)
+    let! foodPosition = getFoodPosition [startPosition]
+    return {
+            HeadPosition = startPosition
+            LookDirection = Right
+            LastLookDirection = Right
+            TailPositions = []
+            FoodPosition = foodPosition
+            NextMove = Config.SecondsPerMove
+        }
+}
 
 let updateDirection (direction:Direction) (state) =
     match (state.LastLookDirection, direction) with
@@ -68,7 +66,7 @@ let updateDirection (direction:Direction) (state) =
     | (Left, Right) | (Right, Left) -> state
     | (_, direction) -> {state with LookDirection = direction}
 
-let isValid (state:State') =
+let isValid (state:State) =
     let checkSelfCollision (postion) (tail) =
         tail
         |> List.contains postion
@@ -81,59 +79,58 @@ let isValid (state:State') =
     checkSelfCollision state.HeadPosition state.TailPositions
     && checkBounds state.HeadPosition
 
-let Update (state:State) (time:System.TimeSpan) (event) : option<State> * list<Command> =
+let Update (state:State) (time:System.TimeSpan) (event) = StateM.m<Pcg.Pcg32> {
     match event with
     | Look direction ->
-        let state =
+        let state = 
             state
-            |> Pcg.PcgV.map (updateDirection direction)
-        (Some state, [])
+            |> updateDirection direction
+        return (Some state, [])
 
     | Tick ->
-        let (state, commands) =
-            state
-            |> Pcg.PcgV.apply (fun state -> Pcg.pcgM {
-                if time < state.NextMove then return (state, []) else
-                    let position =
-                        let (x, y) = state.HeadPosition
-                        match state.LookDirection with
-                        | Up    -> (x, y - 1)
-                        | Down  -> (x, y + 1)
-                        | Left  -> (x - 1, y)
-                        | Right -> (x + 1, y)
-
-                    let tail = state.HeadPosition :: state.TailPositions
-                    let NextMove = time + Config.SecondsPerMove
-                    if state.FoodPosition = position then
-                        let! foodPosition = getFoodPosition (position :: tail)
-                        let state =
-                            {state with
-                                HeadPosition = position
-                                TailPositions = tail
-                                LastLookDirection = state.LookDirection
-                                FoodPosition = foodPosition
-                                NextMove = NextMove
-                            }
-                        return (state, [PlaySound "Snake_Eat.wav"])
-                    else
-                        let state =
-                            {state with
-                                HeadPosition = position
-                                TailPositions = tail |> List.take state.TailPositions.Length
-                                LastLookDirection = state.LookDirection
-                                NextMove = NextMove
-                            }
-                        return (state, [])
-            })
-            |> Pcg.PcgV.split id
-
-        if isValid state.Value then
-            (Some state, commands)
+        if time < state.NextMove then
+            return (Some state, [])
         else
-            (None, commands)
+            let verify (state) =
+                if isValid state then
+                    Some state
+                else
+                    None
+
+            let position =
+                let (x, y) = state.HeadPosition
+                match state.LookDirection with
+                | Up    -> (x, y - 1)
+                | Down  -> (x, y + 1)
+                | Left  -> (x - 1, y)
+                | Right -> (x + 1, y)
+
+            let tail = state.HeadPosition :: state.TailPositions
+            let NextMove = time + Config.SecondsPerMove
+            if state.FoodPosition = position then
+                let! foodPosition = getFoodPosition (position :: tail)
+                let state =
+                    {state with
+                        HeadPosition = position
+                        TailPositions = tail
+                        LastLookDirection = state.LookDirection
+                        FoodPosition = foodPosition
+                        NextMove = NextMove
+                    }
+                return (verify state, [PlaySound "Snake_Eat.wav"])
+            else
+                let state =
+                    {state with
+                        HeadPosition = position
+                        TailPositions = tail |> List.take state.TailPositions.Length
+                        LastLookDirection = state.LookDirection
+                        NextMove = NextMove
+                    }
+                return (verify state, [])
+}
 
 let Draw (state:State) = Scene.graph {
-    let state = state.Value
+    let state = state
 
     yield Scene.Ellipse {
         Position = state.FoodPosition
